@@ -1,38 +1,74 @@
 let userAccount = null;
 
+// 👇 YAHAN APNA CONTRACT ADDRESS DAALNA HAI
+const CONTRACT_ADDRESS = "PASTE_YOUR_CONTRACT_ADDRESS_HERE";
+
+// ABI (isko mat chhedna)
+const CONTRACT_ABI = [
+  {
+    "inputs": [],
+    "name": "checkIn",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getMyCheckIns",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+];
+
 const connectBtn = document.getElementById("connect");
 const checkInBtn = document.getElementById("checkin");
 const walletText = document.getElementById("wallet");
 const statusText = document.getElementById("status");
 const messageText = document.getElementById("message");
 
-// Disable check-in button until wallet is connected
 checkInBtn.disabled = true;
 
-// Connect Wallet
+// WALLET CONNECT
 connectBtn.onclick = async () => {
-  if (!window.ethereum) {
-    alert("MetaMask not detected. Please install MetaMask.");
-    return;
-  }
+  const provider = new ethers.providers.Web3Provider(window.ethereum);
+  await provider.send("eth_requestAccounts", []);
+  const signer = provider.getSigner();
 
+  userAccount = await signer.getAddress();
+  walletText.innerText = "Wallet: " + userAccount;
+  statusText.innerText = "Status: Wallet connected";
+  checkInBtn.disabled = false;
+};
+
+// BUTTON CLICK = BLOCKCHAIN CALL
+checkInBtn.onclick = async () => {
   try {
-    const accounts = await window.ethereum.request({
-      method: "eth_requestAccounts",
-    });
+    statusText.innerText = "Status: Sending transaction...";
 
-    userAccount = accounts[0];
-    walletText.innerText = "Wallet: " + userAccount;
-    statusText.innerText = "Status: Wallet connected";
-    checkInBtn.disabled = false;
-  } catch (error) {
-    console.error(error);
-    alert("Wallet connection failed");
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
+
+    const contract = new ethers.Contract(
+      CONTRACT_ADDRESS,
+      CONTRACT_ABI,
+      signer
+    );
+
+    const tx = await contract.checkIn();
+    await tx.wait();
+
+    messageText.innerText = "✅ Check-in successful (onchain)";
+    statusText.innerText = "Status: Checked in";
+
+  } catch (err) {
+    messageText.innerText = "❌ Already checked in or error";
+    statusText.innerText = "Status: Failed";
   }
 };
-
-// Check-In Button (Onchain next step)
-checkInBtn.onclick = () => {
-  messageText.innerText = "✅ Check-in button clicked (onchain coming next)";
-};
-
