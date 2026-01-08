@@ -1,1 +1,65 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: #0f172a;
+  font-family: Arial, sans-serif;
+  color: #ffffff;
+}
+
+.container {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card {
+  background: #020617;
+  padding: 30px;
+  width: 320px;
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+}
+
+h1 {
+  margin-bottom: 20px;
+}
+
+#wallet,
+#status,
+#message {
+  font-size: 14px;
+  margin: 10px 0;
+  word-break: break-all;
+}
+
+button {
+  width: 100%;
+  padding: 12px;
+  margin-top: 12px;
+  font-size: 16px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+#connect {
+  background-color: #2563eb;
+  color: white;
+}
+
+#checkin {
+  background-color: #22c55e;
+  color: white;
+}
+
+button:disabled {
+  background-color: #475569;
+  cursor: not-allowed;
+}
 
