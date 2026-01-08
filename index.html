@@ -7,18 +7,18 @@
     content="width=device-width, initial-scale=1, maximum-scale=1"
   />
 
-  <!-- Base Mini App (app_id baad me add karenge) -->
-  <!-- <meta name="base:app_id" content="YOUR_APP_ID_HERE" /> -->
+  <!-- ✅ BASE MINI APP VERIFICATION (VERY IMPORTANT) -->
+  <meta name="base:app_id" content="695fc22f3ee38216e9af4d9d" />
 
-  <title>My First Check-In</title>
+  <title>Daily Check-In</title>
 
-  <!-- Base Mini App SDK -->
+  <!-- ✅ Base Mini App SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@farcaster/miniapp-sdk@latest/dist/index.umd.js"></script>
 
-  <!-- Ethers -->
+  <!-- ✅ Ethers.js -->
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 
-  <!-- App files -->
+  <!-- App Files -->
   <script src="app.js" defer></script>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -26,11 +26,10 @@
 <body>
   <div class="container">
     <div class="card">
-      <h1>✅ Daily Check-In</h1>
+      <h1>🔥 Daily Check-In</h1>
 
       <p id="wallet">Wallet: Not connected</p>
-
-      <p id="status">Status: Not checked in</p>
+      <p id="status">Status: Waiting</p>
 
       <button id="connect">Connect Wallet</button>
       <button id="checkin">Check In</button>
@@ -40,4 +39,3 @@
   </div>
 </body>
 </html>
-
