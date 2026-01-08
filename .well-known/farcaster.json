@@ -1,0 +1,14 @@
+{
+  "miniapp": {
+    "version": "1",
+    "name": "Daily Check-In",
+    "subtitle": "Build your onchain streak",
+    "description": "A daily onchain check-in mini app on Base.",
+    "iconUrl": "https://my-first-base-miniapp.vercel.app/icon.png",
+    "homeUrl": "https://my-first-base-miniapp.vercel.app/",
+    "chains": ["base"],
+    "permissions": ["wallet"],
+    "primaryCategory": "productivity",
+    "tags": ["daily", "check-in", "base", "onchain"]
+  }
+}
