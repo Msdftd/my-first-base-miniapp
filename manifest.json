@@ -3,9 +3,15 @@
   "short_name": "CheckIn",
   "description": "Daily onchain check-in mini app on Base",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#22c55e",
+
+  "base": {
+    "app_id": "695fc22f3ee38216e9af4d9d"
+  },
+
   "icons": [
     {
       "src": "/icon.png",
