@@ -1,9 +1,9 @@
 let userAccount = null;
 
-// 👇 YAHAN APNA CONTRACT ADDRESS DAALNA HAI
+// ✅ YOUR DEPLOYED CONTRACT ADDRESS (Base)
 const CONTRACT_ADDRESS = "0xe4E190fF37396B0870360753Af9112571dEA8CEa";
 
-// ABI (isko mat chhedna)
+// ✅ ABI (DO NOT CHANGE)
 const CONTRACT_ABI = [
   {
     "inputs": [],
@@ -27,27 +27,41 @@ const CONTRACT_ABI = [
   }
 ];
 
+// UI Elements
 const connectBtn = document.getElementById("connect");
 const checkInBtn = document.getElementById("checkin");
 const walletText = document.getElementById("wallet");
 const statusText = document.getElementById("status");
 const messageText = document.getElementById("message");
 
+// Disable check-in until wallet is connected
 checkInBtn.disabled = true;
 
-// WALLET CONNECT
+// 🔵 CONNECT WALLET
 connectBtn.onclick = async () => {
-  const provider = new ethers.providers.Web3Provider(window.ethereum);
-  await provider.send("eth_requestAccounts", []);
-  const signer = provider.getSigner();
+  if (!window.ethereum) {
+    alert("Wallet not found. Please install MetaMask or OKX Wallet.");
+    return;
+  }
 
-  userAccount = await signer.getAddress();
-  walletText.innerText = "Wallet: " + userAccount;
-  statusText.innerText = "Status: Wallet connected";
-  checkInBtn.disabled = false;
+  try {
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    await provider.send("eth_requestAccounts", []);
+    const signer = provider.getSigner();
+
+    userAccount = await signer.getAddress();
+
+    walletText.innerText = "Wallet: " + userAccount;
+    statusText.innerText = "Status: Wallet connected";
+    checkInBtn.disabled = false;
+
+  } catch (error) {
+    console.error(error);
+    alert("Wallet connection failed");
+  }
 };
 
-// BUTTON CLICK = BLOCKCHAIN CALL
+// 🟢 CHECK-IN (ONCHAIN TRANSACTION)
 checkInBtn.onclick = async () => {
   try {
     statusText.innerText = "Status: Sending transaction...";
@@ -64,11 +78,12 @@ checkInBtn.onclick = async () => {
     const tx = await contract.checkIn();
     await tx.wait();
 
-    messageText.innerText = "✅ Check-in successful (onchain)";
+    messageText.innerText = "✅ Check-in successful! (On-chain)";
     statusText.innerText = "Status: Checked in";
 
-  } catch (err) {
-    messageText.innerText = "❌ Already checked in or error";
+  } catch (error) {
+    console.error(error);
+    messageText.innerText = "❌ Already checked in today or transaction failed";
     statusText.innerText = "Status: Failed";
   }
 };
