@@ -7,7 +7,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <script src="https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js"></script>
     <style>
         :root {
             --primary: #0052FF;
@@ -604,8 +603,6 @@
         };
 
         // State
-        let provider = null;
-        let signer = null;
         let userAddress = null;
         let isConnected = false;
 
@@ -627,7 +624,7 @@
         // Check if wallet is installed
         function checkWalletInstalled() {
             if (typeof window.ethereum === 'undefined') {
-                showAlert('Please install MetaMask or Coinbase Wallet to use this app', 'error');
+                showAlert('⚠️ Please install MetaMask or Coinbase Wallet to use this app. Visit metamask.io or coinbase.com/wallet', 'error');
                 return false;
             }
             return true;
@@ -660,11 +657,13 @@
                         });
                         return true;
                     } catch (addError) {
-                        showAlert('Failed to add Base network', 'error');
+                        showAlert('Failed to add Base network. Please add it manually.', 'error');
+                        console.error('Add network error:', addError);
                         return false;
                     }
                 } else {
-                    showAlert('Failed to switch to Base network', 'error');
+                    showAlert('Please switch to Base network manually in your wallet.', 'error');
+                    console.error('Switch network error:', switchError);
                     return false;
                 }
             }
@@ -676,20 +675,31 @@
                 if (!checkWalletInstalled()) return;
 
                 try {
-                    walletText.innerHTML = '<span class="loading"></span> Connecting...';
+                    walletText.innerHTML = '<span class="loading"></span>';
                     walletBtn.disabled = true;
+
+                    console.log('Requesting accounts...');
 
                     // Request account access
                     const accounts = await window.ethereum.request({
                         method: 'eth_requestAccounts'
                     });
 
+                    console.log('Accounts received:', accounts);
+
+                    if (!accounts || accounts.length === 0) {
+                        throw new Error('No accounts returned');
+                    }
+
                     // Check network
                     const chainId = await window.ethereum.request({
                         method: 'eth_chainId'
                     });
 
+                    console.log('Current chain ID:', chainId);
+
                     if (chainId !== BASE_CHAIN_ID) {
+                        console.log('Switching to Base network...');
                         const switched = await switchToBaseNetwork();
                         if (!switched) {
                             walletText.textContent = 'Connect Wallet';
@@ -698,24 +708,27 @@
                         }
                     }
 
-                    // Initialize ethers provider
-                    provider = new ethers.providers.Web3Provider(window.ethereum);
-                    signer = provider.getSigner();
                     userAddress = accounts[0];
                     isConnected = true;
+
+                    console.log('Connected successfully:', userAddress);
 
                     updateWalletUI();
                     showNetworkBadge();
                     await loadUserData();
-                    showAlert('Wallet connected successfully!', 'success');
+                    showAlert('✅ Wallet connected successfully!', 'success');
 
                 } catch (error) {
-                    console.error('Failed to connect wallet:', error);
+                    console.error('Connection error details:', error);
+                    
                     if (error.code === 4001) {
-                        showAlert('You rejected the connection request', 'error');
+                        showAlert('❌ Connection rejected. Please try again.', 'error');
+                    } else if (error.code === -32002) {
+                        showAlert('⏳ Connection request pending. Please check your wallet.', 'error');
                     } else {
-                        showAlert('Failed to connect wallet', 'error');
+                        showAlert('❌ Failed to connect. Error: ' + (error.message || 'Unknown error'), 'error');
                     }
+                    
                     walletText.textContent = 'Connect Wallet';
                     walletBtn.disabled = false;
                 }
@@ -727,8 +740,6 @@
 
         // Disconnect wallet
         function disconnectWallet() {
-            provider = null;
-            signer = null;
             userAddress = null;
             isConnected = false;
             updateWalletUI();
@@ -740,24 +751,27 @@
         // Listen for account changes
         if (typeof window.ethereum !== 'undefined') {
             window.ethereum.on('accountsChanged', (accounts) => {
+                console.log('Accounts changed:', accounts);
                 if (accounts.length === 0) {
                     disconnectWallet();
                 } else if (isConnected) {
                     userAddress = accounts[0];
                     updateWalletUI();
                     loadUserData();
+                    showAlert('Account switched', 'success');
                 }
             });
 
             window.ethereum.on('chainChanged', (chainId) => {
+                console.log('Chain changed:', chainId);
                 if (chainId !== BASE_CHAIN_ID) {
-                    showAlert('Please switch back to Base network', 'error');
+                    showAlert('⚠️ Please switch back to Base network', 'error');
                     checkInBtn.disabled = true;
                     networkName.textContent = 'Wrong Network';
                 } else {
                     checkInBtn.disabled = false;
                     networkName.textContent = 'Base Mainnet';
-                    showAlert('Connected to Base network', 'success');
+                    showAlert('✅ Connected to Base network', 'success');
                 }
             });
         }
@@ -773,7 +787,7 @@
                 // Verify we're on Base network
                 const chainId = await window.ethereum.request({ method: 'eth_chainId' });
                 if (chainId !== BASE_CHAIN_ID) {
-                    showAlert('Please switch to Base network', 'error');
+                    showAlert('⚠️ Please switch to Base network', 'error');
                     checkInBtn.disabled = false;
                     checkInText.textContent = 'Check In Today';
                     return;
@@ -781,10 +795,15 @@
 
                 // Here you would call your smart contract
                 // For now, simulating the transaction
-                // Replace this with actual contract interaction:
-                // const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
-                // const tx = await contract.checkIn();
-                // await tx.wait();
+                // Example contract interaction:
+                // const tx = await window.ethereum.request({
+                //     method: 'eth_sendTransaction',
+                //     params: [{
+                //         from: userAddress,
+                //         to: CONTRACT_ADDRESS,
+                //         data: '0x...' // encoded function call
+                //     }]
+                // });
 
                 // Simulate transaction delay
                 await new Promise(resolve => setTimeout(resolve, 2000));
@@ -802,7 +821,7 @@
                 statusBadge.className = 'status-badge success';
                 statusText.textContent = 'Checked In Today';
                 checkInText.textContent = 'Checked In! ✅';
-                showAlert('Check-in successful!', 'success');
+                showAlert('✅ Check-in successful!', 'success');
 
                 setTimeout(() => {
                     checkInText.textContent = 'Come Back Tomorrow';
@@ -810,7 +829,7 @@
 
             } catch (error) {
                 console.error('Check-in failed:', error);
-                showAlert('Check-in failed. Please try again.', 'error');
+                showAlert('❌ Check-in failed. Please try again.', 'error');
                 checkInBtn.disabled = false;
                 checkInText.textContent = 'Check In Today';
             }
@@ -966,23 +985,11 @@
         }
 
         // Initialize on page load
-        window.addEventListener('load', async () => {
+        console.log('Page loaded, checking for wallet...');
+        console.log('window.ethereum available:', typeof window.ethereum !== 'undefined');
+        
+        window.addEventListener('load', () => {
             updateWalletUI();
-            
-            // Auto-connect if previously connected
-            if (typeof window.ethereum !== 'undefined') {
-                try {
-                    const accounts = await window.ethereum.request({ 
-                        method: 'eth_accounts' 
-                    });
-                    if (accounts.length > 0) {
-                        // User was previously connected, don't auto-connect
-                        // Let them click the button to reconnect
-                    }
-                } catch (error) {
-                    console.error('Error checking accounts:', error);
-                }
-            }
         });
     </script>
 </body>
