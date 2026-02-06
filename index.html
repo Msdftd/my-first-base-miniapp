@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js"></script>
     <style>
         :root {
             --primary: #0052FF;
@@ -417,6 +418,67 @@
             border: 1px solid rgba(16, 185, 129, 0.2);
         }
 
+        .status-badge.error {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        /* Alert/Error Message */
+        .alert {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 10px;
+            font-size: 0.875rem;
+            display: none;
+        }
+
+        .alert.show {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .alert.error {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        .alert.success {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .network-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            font-size: 0.875rem;
+            margin-top: 1rem;
+        }
+
+        .network-indicator {
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .main-content {
@@ -485,6 +547,11 @@
                         <span id="statusText">Waiting for Connection</span>
                     </span>
                 </div>
+                <div class="network-badge" id="networkBadge" style="display: none;">
+                    <span class="network-indicator"></span>
+                    <span id="networkName">Base Mainnet</span>
+                </div>
+                <div class="alert" id="alertBox"></div>
             </div>
 
             <div class="card stats-card">
@@ -498,8 +565,8 @@
                     <span class="stat-value" id="totalCheckins">0</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-label">Longest Streak</span>
-                    <span class="stat-value" id="longestStreak">0</span>
+                    <span class="stat-label">Last Check-In</span>
+                    <span class="stat-value" id="lastCheckin" style="font-size: 1rem;">Never</span>
                 </div>
             </div>
 
@@ -519,12 +586,28 @@
     </div>
 
     <script>
-        // Wallet connection state
+        // Configuration
+        const BASE_CHAIN_ID = '0x2105'; // Base Mainnet: 8453 in hex
+        const BASE_CHAIN_ID_DECIMAL = 8453;
+        
+        // Network Configuration
+        const BASE_NETWORK = {
+            chainId: BASE_CHAIN_ID,
+            chainName: 'Base',
+            nativeCurrency: {
+                name: 'Ethereum',
+                symbol: 'ETH',
+                decimals: 18
+            },
+            rpcUrls: ['https://mainnet.base.org'],
+            blockExplorerUrls: ['https://basescan.org']
+        };
+
+        // State
+        let provider = null;
+        let signer = null;
+        let userAddress = null;
         let isConnected = false;
-        let walletAddress = null;
-        let checkInCount = 0;
-        let currentStreak = 0;
-        let longestStreak = 0;
 
         // DOM Elements
         const walletBtn = document.getElementById('walletBtn');
@@ -533,81 +616,215 @@
         const checkInText = document.getElementById('checkInText');
         const statusBadge = document.getElementById('statusBadge');
         const statusText = document.getElementById('statusText');
+        const networkBadge = document.getElementById('networkBadge');
+        const networkName = document.getElementById('networkName');
+        const alertBox = document.getElementById('alertBox');
         const streakCountEl = document.getElementById('streakCount');
         const totalCheckinsEl = document.getElementById('totalCheckins');
-        const longestStreakEl = document.getElementById('longestStreak');
+        const lastCheckinEl = document.getElementById('lastCheckin');
         const activityList = document.getElementById('activityList');
 
-        // Wallet Connect
+        // Check if wallet is installed
+        function checkWalletInstalled() {
+            if (typeof window.ethereum === 'undefined') {
+                showAlert('Please install MetaMask or Coinbase Wallet to use this app', 'error');
+                return false;
+            }
+            return true;
+        }
+
+        // Show alert message
+        function showAlert(message, type = 'error') {
+            alertBox.textContent = message;
+            alertBox.className = `alert ${type} show`;
+            setTimeout(() => {
+                alertBox.classList.remove('show');
+            }, 5000);
+        }
+
+        // Check and switch to Base network
+        async function switchToBaseNetwork() {
+            try {
+                await window.ethereum.request({
+                    method: 'wallet_switchEthereumChain',
+                    params: [{ chainId: BASE_CHAIN_ID }],
+                });
+                return true;
+            } catch (switchError) {
+                // This error code indicates that the chain has not been added to MetaMask
+                if (switchError.code === 4902) {
+                    try {
+                        await window.ethereum.request({
+                            method: 'wallet_addEthereumChain',
+                            params: [BASE_NETWORK],
+                        });
+                        return true;
+                    } catch (addError) {
+                        showAlert('Failed to add Base network', 'error');
+                        return false;
+                    }
+                } else {
+                    showAlert('Failed to switch to Base network', 'error');
+                    return false;
+                }
+            }
+        }
+
+        // Connect Wallet
         walletBtn.addEventListener('click', async () => {
             if (!isConnected) {
+                if (!checkWalletInstalled()) return;
+
                 try {
-                    walletText.innerHTML = '<span class="loading"></span>';
-                    
-                    // Simulate wallet connection (replace with actual Web3 integration)
-                    await new Promise(resolve => setTimeout(resolve, 1500));
-                    
-                    // Mock wallet address
-                    walletAddress = '0x' + Math.random().toString(16).substr(2, 40);
+                    walletText.innerHTML = '<span class="loading"></span> Connecting...';
+                    walletBtn.disabled = true;
+
+                    // Request account access
+                    const accounts = await window.ethereum.request({
+                        method: 'eth_requestAccounts'
+                    });
+
+                    // Check network
+                    const chainId = await window.ethereum.request({
+                        method: 'eth_chainId'
+                    });
+
+                    if (chainId !== BASE_CHAIN_ID) {
+                        const switched = await switchToBaseNetwork();
+                        if (!switched) {
+                            walletText.textContent = 'Connect Wallet';
+                            walletBtn.disabled = false;
+                            return;
+                        }
+                    }
+
+                    // Initialize ethers provider
+                    provider = new ethers.providers.Web3Provider(window.ethereum);
+                    signer = provider.getSigner();
+                    userAddress = accounts[0];
                     isConnected = true;
-                    
+
                     updateWalletUI();
-                    loadUserData();
+                    showNetworkBadge();
+                    await loadUserData();
+                    showAlert('Wallet connected successfully!', 'success');
+
                 } catch (error) {
                     console.error('Failed to connect wallet:', error);
+                    if (error.code === 4001) {
+                        showAlert('You rejected the connection request', 'error');
+                    } else {
+                        showAlert('Failed to connect wallet', 'error');
+                    }
                     walletText.textContent = 'Connect Wallet';
+                    walletBtn.disabled = false;
                 }
             } else {
                 // Disconnect
-                isConnected = false;
-                walletAddress = null;
-                updateWalletUI();
-                resetUI();
+                disconnectWallet();
             }
         });
 
-        // Check In
+        // Disconnect wallet
+        function disconnectWallet() {
+            provider = null;
+            signer = null;
+            userAddress = null;
+            isConnected = false;
+            updateWalletUI();
+            resetUI();
+            networkBadge.style.display = 'none';
+            showAlert('Wallet disconnected', 'success');
+        }
+
+        // Listen for account changes
+        if (typeof window.ethereum !== 'undefined') {
+            window.ethereum.on('accountsChanged', (accounts) => {
+                if (accounts.length === 0) {
+                    disconnectWallet();
+                } else if (isConnected) {
+                    userAddress = accounts[0];
+                    updateWalletUI();
+                    loadUserData();
+                }
+            });
+
+            window.ethereum.on('chainChanged', (chainId) => {
+                if (chainId !== BASE_CHAIN_ID) {
+                    showAlert('Please switch back to Base network', 'error');
+                    checkInBtn.disabled = true;
+                    networkName.textContent = 'Wrong Network';
+                } else {
+                    checkInBtn.disabled = false;
+                    networkName.textContent = 'Base Mainnet';
+                    showAlert('Connected to Base network', 'success');
+                }
+            });
+        }
+
+        // Check In Function
         checkInBtn.addEventListener('click', async () => {
             if (!isConnected) return;
-            
-            checkInBtn.disabled = true;
-            checkInText.innerHTML = '<span class="loading"></span> Checking In...';
-            
+
             try {
-                // Simulate transaction (replace with actual blockchain transaction)
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                
-                checkInCount++;
-                currentStreak++;
-                if (currentStreak > longestStreak) {
-                    longestStreak = currentStreak;
+                checkInBtn.disabled = true;
+                checkInText.innerHTML = '<span class="loading"></span> Processing...';
+
+                // Verify we're on Base network
+                const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                if (chainId !== BASE_CHAIN_ID) {
+                    showAlert('Please switch to Base network', 'error');
+                    checkInBtn.disabled = false;
+                    checkInText.textContent = 'Check In Today';
+                    return;
                 }
-                
-                updateStats();
+
+                // Here you would call your smart contract
+                // For now, simulating the transaction
+                // Replace this with actual contract interaction:
+                // const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+                // const tx = await contract.checkIn();
+                // await tx.wait();
+
+                // Simulate transaction delay
+                await new Promise(resolve => setTimeout(resolve, 2000));
+
+                // Update local storage
+                const checkInData = getStoredCheckInData();
+                checkInData.totalCheckins++;
+                checkInData.currentStreak++;
+                checkInData.lastCheckin = new Date().toISOString();
+                saveCheckInData(checkInData);
+
+                updateStats(checkInData);
                 addActivity('Check-In Successful', 'Just now', '✅');
-                
+
                 statusBadge.className = 'status-badge success';
                 statusText.textContent = 'Checked In Today';
                 checkInText.textContent = 'Checked In! ✅';
-                
+                showAlert('Check-in successful!', 'success');
+
                 setTimeout(() => {
                     checkInText.textContent = 'Come Back Tomorrow';
                 }, 2000);
-                
+
             } catch (error) {
                 console.error('Check-in failed:', error);
+                showAlert('Check-in failed. Please try again.', 'error');
                 checkInBtn.disabled = false;
                 checkInText.textContent = 'Check In Today';
             }
         });
 
+        // Update wallet UI
         function updateWalletUI() {
-            if (isConnected) {
+            if (isConnected && userAddress) {
                 walletBtn.classList.add('connected');
                 walletText.innerHTML = `
                     <span class="wallet-indicator"></span>
-                    ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}
+                    ${userAddress.slice(0, 6)}...${userAddress.slice(-4)}
                 `;
+                walletBtn.disabled = false;
                 checkInBtn.disabled = false;
                 checkInText.textContent = 'Check In Today';
                 statusBadge.className = 'status-badge waiting';
@@ -615,6 +832,7 @@
             } else {
                 walletBtn.classList.remove('connected');
                 walletText.textContent = 'Connect Wallet';
+                walletBtn.disabled = false;
                 checkInBtn.disabled = true;
                 checkInText.textContent = 'Connect Wallet First';
                 statusBadge.className = 'status-badge waiting';
@@ -622,35 +840,93 @@
             }
         }
 
-        function loadUserData() {
-            // Simulate loading user data from blockchain
-            checkInCount = Math.floor(Math.random() * 30);
-            currentStreak = Math.floor(Math.random() * 15);
-            longestStreak = Math.max(currentStreak, Math.floor(Math.random() * 20));
-            
-            updateStats();
+        // Show network badge
+        function showNetworkBadge() {
+            networkBadge.style.display = 'inline-flex';
+        }
+
+        // Local storage functions
+        function getStoredCheckInData() {
+            const key = `checkin_${userAddress}`;
+            const stored = localStorage.getItem(key);
+            if (stored) {
+                return JSON.parse(stored);
+            }
+            return {
+                totalCheckins: 0,
+                currentStreak: 0,
+                lastCheckin: null
+            };
+        }
+
+        function saveCheckInData(data) {
+            const key = `checkin_${userAddress}`;
+            localStorage.setItem(key, JSON.stringify(data));
+        }
+
+        // Load user data
+        async function loadUserData() {
+            if (!userAddress) return;
+
+            // Load from local storage (replace with blockchain query)
+            const data = getStoredCheckInData();
+            updateStats(data);
             loadRecentActivity();
         }
 
-        function updateStats() {
-            streakCountEl.textContent = currentStreak;
-            totalCheckinsEl.textContent = checkInCount;
-            longestStreakEl.textContent = longestStreak;
+        // Update stats display
+        function updateStats(data) {
+            streakCountEl.textContent = data.currentStreak;
+            totalCheckinsEl.textContent = data.totalCheckins;
+            
+            if (data.lastCheckin) {
+                const lastDate = new Date(data.lastCheckin);
+                const now = new Date();
+                const diffTime = Math.abs(now - lastDate);
+                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                
+                if (diffDays === 0) {
+                    lastCheckinEl.textContent = 'Today';
+                } else if (diffDays === 1) {
+                    lastCheckinEl.textContent = 'Yesterday';
+                } else {
+                    lastCheckinEl.textContent = `${diffDays} days ago`;
+                }
+            } else {
+                lastCheckinEl.textContent = 'Never';
+            }
         }
 
+        // Load recent activity
         function loadRecentActivity() {
-            activityList.innerHTML = '';
-            const activities = [
-                { title: 'Check-In #' + checkInCount, time: '2 hours ago', icon: '✅' },
-                { title: 'Streak Milestone', time: '1 day ago', icon: '🏆' },
-                { title: 'Check-In #' + (checkInCount - 1), time: '1 day ago', icon: '✅' },
-            ];
-
-            activities.forEach(activity => {
-                addActivity(activity.title, activity.time, activity.icon);
-            });
+            const data = getStoredCheckInData();
+            if (data.totalCheckins > 0) {
+                activityList.innerHTML = '';
+                addActivity(`Check-In #${data.totalCheckins}`, formatTime(data.lastCheckin), '✅');
+                
+                // Add some mock previous activities
+                for (let i = 1; i < Math.min(4, data.totalCheckins); i++) {
+                    addActivity(`Check-In #${data.totalCheckins - i}`, `${i} ${i === 1 ? 'day' : 'days'} ago`, '✅');
+                }
+            }
         }
 
+        function formatTime(timestamp) {
+            if (!timestamp) return 'Unknown';
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMs / 3600000);
+            const diffDays = Math.floor(diffMs / 86400000);
+
+            if (diffMins < 1) return 'Just now';
+            if (diffMins < 60) return `${diffMins} min ago`;
+            if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+            return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+        }
+
+        // Add activity to list
         function addActivity(title, time, icon) {
             const activityItem = document.createElement('div');
             activityItem.className = 'activity-item';
@@ -661,19 +937,23 @@
                     <div class="activity-time">${time}</div>
                 </div>
             `;
-            activityList.insertBefore(activityItem, activityList.firstChild);
             
+            if (activityList.firstChild && activityList.firstChild.querySelector('.activity-title').textContent === 'No activity yet') {
+                activityList.innerHTML = '';
+            }
+            
+            activityList.insertBefore(activityItem, activityList.firstChild);
+
             // Keep only last 5 activities
             while (activityList.children.length > 5) {
                 activityList.removeChild(activityList.lastChild);
             }
         }
 
+        // Reset UI
         function resetUI() {
-            checkInCount = 0;
-            currentStreak = 0;
-            longestStreak = 0;
-            updateStats();
+            const data = { totalCheckins: 0, currentStreak: 0, lastCheckin: null };
+            updateStats(data);
             activityList.innerHTML = `
                 <div class="activity-item">
                     <div class="activity-icon">📅</div>
@@ -685,8 +965,25 @@
             `;
         }
 
-        // Initialize
-        updateWalletUI();
+        // Initialize on page load
+        window.addEventListener('load', async () => {
+            updateWalletUI();
+            
+            // Auto-connect if previously connected
+            if (typeof window.ethereum !== 'undefined') {
+                try {
+                    const accounts = await window.ethereum.request({ 
+                        method: 'eth_accounts' 
+                    });
+                    if (accounts.length > 0) {
+                        // User was previously connected, don't auto-connect
+                        // Let them click the button to reconnect
+                    }
+                } catch (error) {
+                    console.error('Error checking accounts:', error);
+                }
+            }
+        });
     </script>
 </body>
 </html>
