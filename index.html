@@ -1,148 +1,45 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Daily Check-In | Base Network</title>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1"
+  />
 
-<!-- Google Fonts -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- ✅ BASE MINI APP VERIFICATION (DO NOT COMMENT) -->
+  <meta name="base:app_id" content="695fc22f3ee38216e9af4d9d" />
 
-<!-- ✅ FIX: STABLE ETHERS CDN -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js" crossorigin="anonymous"></script>
+  <title>Daily Check-In</title>
 
-<style>
-/* ===== YOUR ORIGINAL CSS (UNCHANGED) ===== */
-:root {
---primary:#0052FF;--primary-dark:#0041CC;--primary-light:#3374FF;
---success:#10B981;--warning:#F59E0B;--error:#EF4444;
---bg-dark:#0A0B0D;--bg-card:#13151A;--bg-card-hover:#1A1D24;
---text-primary:#FFFFFF;--text-secondary:#9CA3AF;--text-muted:#6B7280;
---border:#1F2937;--glow:rgba(0,82,255,.3)
-}
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:Outfit,sans-serif;background:var(--bg-dark);color:#fff;min-height:100vh}
-.container{max-width:1200px;margin:auto;padding:2rem}
-.wallet-btn{padding:.7rem 1.4rem;border-radius:12px;border:1px solid var(--border);cursor:pointer}
-.wallet-btn.connected{background:linear-gradient(135deg,var(--primary),var(--primary-light));color:#fff}
-.check-in-btn{padding:1.2rem 3rem;border-radius:14px;border:none;font-size:1.1rem}
-.status-badge{padding:.5rem 1rem;border-radius:8px;font-weight:600}
-.status-badge.waiting{color:#f59e0b}
-.status-badge.success{color:#10b981}
-.loading{width:18px;height:18px;border:3px solid #999;border-top:3px solid #fff;border-radius:50%;animation:spin 1s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-</style>
+  <!-- ✅ Base Mini App SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@farcaster/miniapp-sdk@latest/dist/index.umd.js"></script>
+
+  <!-- ✅ Ethers.js -->
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+
+  <!-- App Files -->
+  <script src="app.js" defer></script>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="manifest" href="/manifest.json" />
+
 </head>
 
 <body>
-<div class="container">
+  <div class="container">
+    <div class="card">
+      <h1>🔥 Daily Check-In</h1>
 
-<header style="display:flex;justify-content:space-between;align-items:center">
-<h2>🔥 Daily Check-In</h2>
-<button class="wallet-btn" id="walletBtn">
-<span id="walletText">Connect Wallet</span>
-</button>
-</header>
+      <p id="wallet">Wallet: Not connected</p>
+      <p id="status">Status: Waiting</p>
 
-<hr style="margin:2rem 0">
+      <button id="connect">Connect Wallet</button>
+      <button id="checkin">Check In</button>
 
-<h1>🎯 Daily Check-In</h1>
-<p>Connect wallet on Base Network to check-in daily.</p>
-
-<br>
-
-<button class="check-in-btn" id="checkInBtn" disabled>
-<span id="checkInText">Connect Wallet First</span>
-</button>
-
-<br><br>
-
-<span class="status-badge waiting" id="statusText">Waiting for connection</span>
-
-<div id="alertBox" style="margin-top:1rem"></div>
-
-</div>
-
-<script>
-/* ================= CONFIG ================= */
-const BASE_CHAIN_ID = "0x2105";
-const BASE_NETWORK = {
-chainId: BASE_CHAIN_ID,
-chainName: "Base",
-nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
-rpcUrls: ["https://mainnet.base.org"],
-blockExplorerUrls: ["https://basescan.org"]
-};
-
-let userAddress = null;
-
-/* ================= DOM ================= */
-const walletBtn = document.getElementById("walletBtn");
-const walletText = document.getElementById("walletText");
-const checkInBtn = document.getElementById("checkInBtn");
-const checkInText = document.getElementById("checkInText");
-const statusText = document.getElementById("statusText");
-const alertBox = document.getElementById("alertBox");
-
-/* ================= UTILS ================= */
-function alertMsg(msg,color="#ef4444"){
-alertBox.innerHTML=`<span style="color:${color}">${msg}</span>`;
-setTimeout(()=>alertBox.innerHTML="",4000)
-}
-
-/* ================= WALLET ================= */
-walletBtn.onclick = async () => {
-if (!window.ethereum) {
-alertMsg("❌ Install MetaMask / Coinbase Wallet");
-return;
-}
-
-try {
-walletText.innerHTML = '<span class="loading"></span>';
-const accounts = await ethereum.request({ method: "eth_requestAccounts" });
-userAddress = accounts[0];
-
-const chainId = await ethereum.request({ method: "eth_chainId" });
-if (chainId !== BASE_CHAIN_ID) {
-await ethereum.request({
-method: "wallet_addEthereumChain",
-params: [BASE_NETWORK]
-});
-}
-
-walletBtn.classList.add("connected");
-walletText.innerText = userAddress.slice(0,6)+"..."+userAddress.slice(-4);
-checkInBtn.disabled = false;
-checkInText.innerText = "Check-In Today";
-statusText.innerText = "Ready";
-statusText.className="status-badge success";
-alertMsg("✅ Wallet Connected","#10b981");
-
-} catch (e) {
-walletText.innerText="Connect Wallet";
-alertMsg("❌ Wallet connection failed");
-}
-};
-
-/* ================= CHECK-IN ================= */
-checkInBtn.onclick = async () => {
-checkInBtn.disabled = true;
-checkInText.innerHTML='<span class="loading"></span> Checking-in...';
-
-setTimeout(()=>{
-checkInText.innerText="Checked-In ✅";
-statusText.innerText="Checked-In Today";
-statusText.className="status-badge success";
-alertMsg("🎉 Check-in successful","#10b981");
-},1500);
-};
-
-/* ================= DEBUG ================= */
-console.log("ethers loaded:", typeof ethers !== "undefined" ? ethers.version : "NO");
-console.log("ethereum available:", typeof window.ethereum !== "undefined");
-</script>
-
+      <p id="message"></p>
+    </div>
+  </div>
 </body>
 </html>
+
+<!-- vercel redeploy -->
